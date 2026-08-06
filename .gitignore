@@ -1,0 +1,20 @@
+# Variables de entorno y secretos
+.env
+
+# Entorno virtual de Python
+.venv/
+venv/
+
+#Archivos temporales de Python
+__pycache__/
+*.py[cod]
+
+# Historial generado por la aplicación
+runtime/resultados.json
+
+# Archivos temporales 
+*.tmp 
+.DS_Store
+
+# Configuracion local de VS Code
+.vscode/

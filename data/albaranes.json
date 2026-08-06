@@ -1,0 +1,20 @@
+{
+  "albaranes": [
+    {
+      "numero_albaran": "ALB-002",
+      "cif_proveedor": "B12345678",
+      "proveedor": "Suministros Ejemplo SL",
+      "fecha": "2026-08-01",
+      "importe_total": 250.00,
+      "moneda": "EUR"
+    },
+    {
+      "numero_albaran": "ALB-003",
+      "cif_proveedor": "B87654321",
+      "proveedor": "Distribuciones Demo SL",
+      "fecha": "2026-08-02",
+      "importe_total": 1250.75,
+      "moneda": "EUR"
+    }
+  ]
+}
