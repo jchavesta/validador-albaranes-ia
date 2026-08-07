@@ -1,0 +1,20 @@
+{
+  "albaranes": [
+    {
+      "numero_albaran": "ALB-001/25.1",
+      "cif_proveedor": "B12345678",
+      "proveedor": "Distribuciones Ejemplo SL",
+      "fecha": "2026-08-06",
+      "importe_total": 1250.75,
+      "moneda": "EUR"
+    },
+    {
+      "numero_albaran": "FAC-002",
+      "cif_proveedor": "A87654321",
+      "proveedor": "Suministros Ficticios SA",
+      "fecha": "2026-08-07",
+      "importe_total": 99.95,
+      "moneda": "EUR"
+    }
+  ]
+}
