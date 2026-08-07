@@ -30,7 +30,7 @@ La solución permitirá seleccionar un albarán PDF almacenado en el proyecto, e
 
 | Tema | Decisión |
 |---|---|
-| Lenguaje | Python |
+| Lenguaje y versión | Python 3.12.x|
 | Interfaz | Streamlit |
 | Ejecución | Local en Windows y macOS |
 | Navegación | Menú lateral |
@@ -165,11 +165,11 @@ Punto de entrada de Streamlit. Sus responsabilidades serán:
 Funciones previstas:
 
 ```python
-def crear_servicio() -> ProcessingService: ...
-def mostrar_procesamiento(service: ProcessingService) -> None: ...
-def mostrar_historial(service: ProcessingService) -> None: ...
-def mostrar_informacion() -> None: ...
-def mostrar_resultado(resultado: ResultadoProcesamiento) -> None: ...
+def create_service() -> ProcessingService: ...
+def render_processing(service: ProcessingService) -> None: ...
+def render_history(service: ProcessingService) -> None: ...
+def render_information() -> None: ...
+def render_result(result: ProcessingResult) -> None: ...
 def main() -> None: ...
 ```
 
@@ -187,7 +187,7 @@ Cargará variables de entorno y rutas de la aplicación.
 Modelo previsto:
 
 ```python
-class AppConfig(BaseModel):
+class AppConfig(BaseSettings):
     openai_api_key: str | None
     openai_model: str = "gpt-5.6-terra"
     openai_reasoning_effort: str = "low"
@@ -206,77 +206,160 @@ La ausencia de clave permitirá abrir la interfaz, consultar la información y v
 
 Contendrá los modelos compartidos y enumeraciones del dominio:
 
-- `EstadoProcesamiento`
-- `TipoError`
-- `EtapaError`
-- `DatosAlbaran`
+- `ProcessingStatus`
+- `ErrorType`
+- `ErrorStage`
+- `DeliveryNoteData`
 - `PdfInfo`
-- `DiferenciaCampo`
-- `ResultadoComparacion`
-- `ResultadoProcesamiento`
-- `PreparacionDocumento`
+- `FieldDifference`
+- `ComparisonResult`
+- `ApiUsage`
+- `OpenAIExtraction`
+- `ProcessingResult`
+- `DocumentPreparation`
 
 #### Estado de procesamiento
 
 ```python
-class EstadoProcesamiento(str, Enum):
-    PENDIENTE = "PENDIENTE"
-    VALIDADO = "VALIDADO"
-    EXTRACCION_INCOMPLETA = "EXTRACCION_INCOMPLETA"
-    NO_ENCONTRADO = "NO_ENCONTRADO"
-    CON_DIFERENCIAS = "CON_DIFERENCIAS"
-    DOCUMENTO_INVALIDO = "DOCUMENTO_INVALIDO"
-    ERROR_TECNICO = "ERROR_TECNICO"
-    ERROR_DATOS_REFERENCIA = "ERROR_DATOS_REFERENCIA"
+class ProcessingStatus(str, Enum):
+    PENDING = "PENDIENTE"
+    VALIDATED = "VALIDADO"
+    INCOMPLETE_EXTRACTION = "EXTRACCION_INCOMPLETA"
+    NOT_FOUND = "NO_ENCONTRADO"
+    HAS_DIFFERENCES = "CON_DIFERENCIAS"
+    INVALID_DOCUMENT = "DOCUMENTO_INVALIDO"
+    TECHNICAL_ERROR = "ERROR_TECNICO"
+    REFERENCE_DATA_ERROR = "ERROR_DATOS_REFERENCIA"
+```
+
+#### Tipos y etapas de error
+
+```python
+class ErrorType(str, Enum):
+    AUTHENTICATION = "AUTENTICACION"
+    PERMISSION_DENIED = "PERMISOS"
+    CONNECTION = "CONEXION"
+    RATE_LIMIT_OR_QUOTA = "LIMITE_CUOTA"
+    TIMEOUT = "TIEMPO_ESPERA"
+    INVALID_REQUEST = "SOLICITUD_INVALIDA"
+    INVALID_RESPONSE = "RESPUESTA_INVALIDA"
+    SERVICE_UNAVAILABLE = "SERVICIO"
+    REFERENCE_DATA = "DATOS_REFERENCIA"
+    FILE = "ARCHIVO"
+    INTERNAL = "INTERNO"
+
+
+class ErrorStage(str, Enum):
+    PDF_VALIDATION = "VALIDACION_PDF"
+    OPENAI_EXTRACTION = "EXTRACCION_OPENAI"
+    RESPONSE_VALIDATION = "VALIDACION_RESPUESTA"
+    REFERENCE_LOADING = "CARGA_REFERENCIA"
+    COMPARISON = "COMPARACION"
+    HISTORY_WRITE = "GUARDADO_HISTORIAL"
 ```
 
 #### Datos del albarán
 
 ```python
-class DatosAlbaran(BaseModel):
+class DeliveryNoteData(BaseModel):
     numero_albaran: str | None
     cif_proveedor: str | None
     proveedor: str | None
     fecha: date | None
     importe_total: Decimal | None
     moneda: str | None
-    campos_no_leidos: list[str] = []
-    observaciones: list[str] = []
+    campos_no_leidos: list[str] = Field(default_factory=list)
+    observaciones: list[str] = Field(default_factory=list)
 ```
 
-En la implementación se utilizará `Field(default_factory=list)` para las listas y evitar valores mutables compartidos.
+Las listas utilizan `Field(default_factory=list)` para evitar valores mutables compartidos.
+
+#### Información del PDF
+
+```python
+class PdfInfo(BaseModel):
+    path: Path
+    file_name: str
+    size_bytes: int = Field(ge=0)
+    page_count: int = Field(ge=0)
+    file_hash: str
+    has_extractable_text: bool
+```
+
+`PdfInfo` contendrá los datos obtenidos durante la validación previa. `file_hash` almacenará la huella SHA-256 utilizada para identificar el documento aunque cambie su nombre.
 
 #### Diferencia
 
 ```python
-class DiferenciaCampo(BaseModel):
+class FieldDifference(BaseModel):
     campo: str
     valor_pdf: str | Decimal | date | None
     valor_referencia: str | Decimal | date | None
 ```
 
-#### Resultado
+#### Resultado de comparación
 
 ```python
-class ResultadoProcesamiento(BaseModel):
+class ComparisonResult(BaseModel):
+    coincide: bool
+    diferencias: list[FieldDifference] = Field(default_factory=list)
+```
+
+`ComparisonResult` representa el resultado determinista producido por la comparación local.
+
+#### Uso y resultado de OpenAI
+
+```python
+class ApiUsage(BaseModel):
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+
+
+class OpenAIExtraction(BaseModel):
+    data: DeliveryNoteData
+    api_usage: ApiUsage | None = None
+```
+
+`ApiUsage` registra el consumo comunicado por la API cuando esté disponible. `OpenAIExtraction` permite devolver conjuntamente los datos extraídos y la información de uso.
+
+
+#### Resultado de procesamiento
+
+```python
+class ProcessingResult(BaseModel):
     id_procesamiento: UUID
     archivo: str
     huella_archivo: str
     fecha_procesamiento: datetime
-    numero_intento: int
-    estado: EstadoProcesamiento
-    datos_extraidos: DatosAlbaran | None
-    datos_referencia: DatosAlbaran | None
-    campos_no_leidos: list[str]
-    diferencias: list[DiferenciaCampo]
+    numero_intento: int = Field(ge=1)
+    estado: ProcessingStatus
+    datos_extraidos: DeliveryNoteData | None = None
+    datos_referencia: DeliveryNoteData | None = None
+    campos_no_leidos: list[str] = Field(default_factory=list)
+    diferencias: list[FieldDifference] = Field(default_factory=list)
     mensaje: str
-    duracion_segundos: Decimal
-    etapa_error: EtapaError | None
-    tipo_error: TipoError | None
-    uso_api: dict | None
+    duracion_segundos: Decimal = Field(ge=0)
+    etapa_error: ErrorStage | None = None
+    tipo_error: ErrorType | None = None
+    uso_api: ApiUsage | None = None
 ```
 
-`uso_api` permitirá registrar durante las pruebas los tokens de entrada, salida y total cuando la API los proporcione.
+`uso_api` permitirá registrar en cada procesamiento los tokens de entrada, salida y total cuando la API los proporcione.
+
+#### Preparación del documento
+
+```python
+class DocumentPreparation(BaseModel):
+    pdf_info: PdfInfo
+    previously_processed: bool
+    requires_confirmation: bool
+    next_attempt_number: int = Field(ge=1)
+    latest_result: ProcessingResult | None = None
+```
+
+`DocumentPreparation` reúne la información necesaria para mostrar el PDF seleccionado y solicitar confirmación antes de reprocesarlo, sin iniciar una llamada a OpenAI.
+
 
 ### 6.4 `exceptions.py`
 
@@ -309,8 +392,8 @@ Interfaz prevista:
 
 ```python
 class PdfValidator:
-    def validar(self, ruta: Path) -> PdfInfo: ...
-    def calcular_huella(self, ruta: Path) -> str: ...
+    def validate(self, path: Path) -> PdfInfo: ...
+    def calculate_fingerprint(self, path: Path) -> str: ...
 ```
 
 La validación no realizará llamadas a OpenAI.
@@ -324,7 +407,7 @@ Responsabilidades:
 - Crear el cliente con clave, timeout y reintentos configurados.
 - Codificar el PDF como Base64 e incluirlo directamente en la petición, evitando una llamada separada a la Files API.
 - Enviar un único `input_file` por operación.
-- Solicitar Structured Outputs conforme a `DatosAlbaran`.
+- Solicitar Structured Outputs conforme a `DeliveryNoteData`.
 - Aplicar el prompt de extracción.
 - Devolver un modelo Pydantic validado.
 - Recoger información de uso de tokens.
@@ -334,7 +417,7 @@ Interfaz prevista:
 
 ```python
 class OpenAIExtractor:
-    def extraer(self, ruta: Path) -> ExtraccionOpenAI: ...
+    def extract(self, path: Path) -> OpenAIExtraction: ...
 ```
 
 Configuración del cliente:
@@ -384,13 +467,16 @@ Clase formada por operaciones puras, sin lectura ni escritura de archivos:
 
 ```python
 class Normalizer:
-    def normalizar_cif(self, valor: str) -> str: ...
-    def normalizar_numero_albaran(self, valor: str) -> str: ...
-    def normalizar_proveedor(self, valor: str) -> str: ...
-    def normalizar_fecha(self, valor: str | date) -> date: ...
-    def normalizar_importe(self, valor: str | Decimal) -> Decimal: ...
-    def normalizar_moneda(self, valor: str) -> str: ...
-    def normalizar_albaran(self, datos: DatosAlbaran) -> DatosAlbaran: ...
+    def normalize_supplier_tax_id(self, value: str) -> str: ...
+    def normalize_delivery_note_number(self, value: str) -> str: ...
+    def normalize_supplier_name(self, value: str) -> str: ...
+    def normalize_date(self, value: str | date) -> date: ...
+    def normalize_amount(self, value: str | Decimal) -> Decimal: ...
+    def normalize_currency(self, value: str) -> str: ...
+    def normalize_delivery_note(
+        self,
+        data: DeliveryNoteData,
+    ) -> DeliveryNoteData: ...
 ```
 
 Reglas:
@@ -412,9 +498,13 @@ Repositorio de solo lectura para `albaranes.json`.
 
 ```python
 class ReferenceRepository:
-    def cargar(self) -> list[DatosAlbaran]: ...
-    def validar_unicidad(self) -> None: ...
-    def buscar(self, cif: str, numero: str) -> DatosAlbaran | None: ...
+    def load(self) -> list[DeliveryNoteData]: ...
+    def validate_uniqueness(self) -> None: ...
+    def find(
+        self,
+        supplier_tax_id: str,
+        delivery_note_number: str,
+    ) -> DeliveryNoteData | None: ...
 ```
 
 Reglas:
@@ -430,12 +520,12 @@ Reglas:
 Aplicará las reglas de comparación sin abrir archivos:
 
 ```python
-class AlbaranComparator:
-    def comparar(
+class DeliveryNoteComparator:
+    def compare(
         self,
-        extraido: DatosAlbaran,
-        referencia: DatosAlbaran,
-    ) -> ResultadoComparacion: ...
+        extracted: DeliveryNoteData,
+        reference: DeliveryNoteData,
+    ) -> ComparisonResult: ...
 ```
 
 Comparará:
@@ -453,15 +543,15 @@ Repositorio de lectura y escritura para el historial local:
 
 ```python
 class HistoryRepository:
-    def crear_si_no_existe(self) -> None: ...
-    def guardar(self, resultado: ResultadoProcesamiento) -> None: ...
-    def obtener_intentos(self, huella: str) -> list[ResultadoProcesamiento]: ...
-    def obtener_ultimo(self, huella: str) -> ResultadoProcesamiento | None: ...
-    def listar(
+    def create_if_missing(self) -> None: ...
+    def save(self, result: ProcessingResult) -> None: ...
+    def get_attempts(self, file_hash: str) -> list[ProcessingResult]: ...
+    def get_latest(self, file_hash: str) -> ProcessingResult | None: ...
+    def list_results(
         self,
-        estado: EstadoProcesamiento | None = None,
-        archivo: str | None = None,
-    ) -> list[ResultadoProcesamiento]: ...
+        status: ProcessingStatus | None = None,
+        file_name: str | None = None,
+    ) -> list[ProcessingResult]: ...
 ```
 
 Comportamiento:
@@ -498,23 +588,23 @@ class ProcessingService:
         pdf_validator: PdfValidator,
         extractor: OpenAIExtractor,
         normalizer: Normalizer,
-        comparator: AlbaranComparator,
+        comparator: DeliveryNoteComparator,
         reference_repository: ReferenceRepository,
         history_repository: HistoryRepository,
     ): ...
 
-    def preparar_documento(self, ruta: Path) -> PreparacionDocumento: ...
+    def prepare_document(self, path: Path) -> DocumentPreparation: ...
 
-    def procesar(
+    def process(
         self,
-        ruta: Path,
-        reprocesamiento_confirmado: bool = False,
-    ) -> ResultadoProcesamiento: ...
+        path: Path,
+        reprocessing_confirmed: bool = False,
+    ) -> ProcessingResult: ...
 ```
 
-`preparar_documento()` validará el documento, calculará su huella y consultará el historial. De esta manera la interfaz podrá solicitar confirmación antes de llamar a OpenAI.
+`prepare_document()` validará el documento, calculará su huella y consultará el historial. De esta manera la interfaz podrá solicitar confirmación antes de llamar a OpenAI.
 
-`procesar()` coordinará extracción, validación, normalización, búsqueda, comparación, creación del estado y persistencia.
+`process()` coordinará extracción, validación, normalización, búsqueda, comparación, creación del estado y persistencia.
 
 ## 7. Flujo principal
 
@@ -527,12 +617,12 @@ sequenceDiagram
     participant RP as Repositorios
 
     U->>UI: Seleccionar PDF
-    UI->>PS: preparar_documento(ruta)
+    UI->>PS: prepare_document(path)
     PS->>RP: Consultar historial
     PS-->>UI: Información y estado anterior
     U->>UI: Procesar o confirmar
-    UI->>PS: procesar(ruta, confirmación)
-    PS->>AI: extraer(ruta)
+    UI->>PS: process(path, confirmation)
+    PS->>AI: extract(path)
     AI-->>PS: Datos y uso
     PS->>RP: Buscar referencia
     PS->>PS: Normalizar y comparar
@@ -658,16 +748,16 @@ No se añadirá un botón de eliminación ni una herramienta adicional en el MVP
 
 | Excepción externa | Tipo interno | Mensaje orientativo |
 |---|---|---|
-| `AuthenticationError` | `AUTENTICACION` | La clave no es válida o no tiene permisos |
-| `PermissionDeniedError` | `PERMISOS` | El proyecto no puede usar el modelo solicitado |
-| `APIConnectionError` | `CONEXION` | No se pudo conectar con OpenAI |
-| `APITimeoutError` | `TIEMPO_ESPERA` | OpenAI tardó más de 90 segundos |
-| `RateLimitError` | `LIMITE` o `CUOTA` | Se alcanzó un límite de uso o gasto |
-| `BadRequestError` | `SOLICITUD_INVALIDA` | La solicitud o archivo no es válido |
-| `InternalServerError` | `SERVICIO` | El servicio no está disponible temporalmente |
-| Error de parseo | `RESPUESTA_INVALIDA` | No se recibió una extracción utilizable |
+| `AuthenticationError` | `ErrorType.AUTHENTICATION` | La clave no es válida o no tiene permisos de autenticación |
+| `PermissionDeniedError` | `ErrorType.PERMISSION_DENIED` | El proyecto no tiene permiso para utilizar el modelo solicitado |
+| `APIConnectionError` | `ErrorType.CONNECTION` | No se pudo conectar con OpenAI |
+| `APITimeoutError` | `ErrorType.TIMEOUT` | OpenAI tardó más del tiempo máximo configurado |
+| `RateLimitError` | `ErrorType.RATE_LIMIT_OR_QUOTA` | Se alcanzó un límite de solicitudes, uso o cuota |
+| `BadRequestError` | `ErrorType.INVALID_REQUEST` | La solicitud o el archivo fue rechazado por OpenAI |
+| `InternalServerError` | `ErrorType.SERVICE_UNAVAILABLE` | El servicio de OpenAI no está disponible temporalmente |
+| Error de parseo o validación de respuesta | `ErrorType.INVALID_RESPONSE` | No se recibió una extracción estructurada utilizable |
 
-La API distingue errores de autenticación, conexión, timeout, límites y servicio; el adaptador los convertirá en errores internos estables. Véase la [documentación oficial de errores](https://developers.openai.com/api/docs/guides/error-codes).
+El adaptador convertirá las excepciones del SDK en tipos internos estables y mensajes controlados. Los valores persistidos en `tipo_error` permanecerán en español mediante los valores definidos en `ErrorType`. Véase la [documentación oficial de errores](https://developers.openai.com/api/docs/guides/error-codes).
 
 ### 10.2 Reintentos
 
@@ -778,12 +868,15 @@ runtime/*.tmp
 
 ## 14. Dependencias
 
+La aplicación utilizará Python 3.12.x. El entorno inicial de desarrollo y comprobación se ha creado con Python 3.12.10.
+
 Dependencias iniciales:
 
 ```text
 streamlit
 openai
 pydantic
+pydantic-settings
 python-dotenv
 pypdf
 pytest
@@ -823,7 +916,7 @@ Se realizarán de forma controlada con los tres PDF ficticios y una API key vál
 
 | PDF | Resultado esperado |
 |---|---|
-| Albarán en blanco | `EXTRACCION_INCOMPLETA` |
+| Albarán no registrado en los datos de referencia | `NO_ENCONTRADO` |
 | Albarán con datos diferentes | `CON_DIFERENCIAS` |
 | Albarán coincidente | `VALIDADO` |
 
@@ -835,7 +928,7 @@ Se realizarán de forma controlada con los tres PDF ficticios y una API key vál
 | Validación PDF | RF-06 a RF-10 | `PdfValidator` |
 | Extracción | RF-11 a RF-16 | `OpenAIExtractor`, Pydantic |
 | Normalización | RF-17, RN-17, RN-26 | `normalizer.py` |
-| Comparación | RF-18 a RF-21, RF-41 | `AlbaranComparator`, `ReferenceRepository` |
+| Comparación | RF-18 a RF-21, RF-41 | `DeliveryNoteComparator`, `ReferenceRepository` |
 | Historial | RF-22 a RF-29, RF-35 a RF-37 | `HistoryRepository` |
 | Errores | RF-38 a RF-40, RN-22, RN-25 | Excepciones y `ProcessingService` |
 | Configuración | RNF-15 | `AppConfig`, `.env` |

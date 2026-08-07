@@ -20,7 +20,7 @@
 
 Este documento define los requisitos del producto mínimo viable (MVP) de una aplicación que extrae datos de albaranes en PDF mediante la API de OpenAI y los compara con registros almacenados en un fichero JSON.
 
-La aplicación estará orientada a una demostración académica con dos o tres PDF ficticios. Deberá ser sencilla de ejecutar, probar y evaluar desde un repositorio de GitHub.
+La aplicación estará orientada a una demostración académica con tres PDF ficticios. Deberá ser sencilla de ejecutar, probar y evaluar desde un repositorio de GitHub.
 
 ## 2. Objetivos
 
@@ -71,7 +71,7 @@ La aplicación estará orientada a una demostración académica con dos o tres P
 ## 5. Supuestos y dependencias
 
 - Los PDF del MVP contienen texto extraíble y no información real o confidencial.
-- El proyecto incluirá entre dos y tres PDF de prueba.
+- El proyecto incluirá tres PDF de prueba.
 - Para efectuar una extracción real se requiere conexión a Internet y una clave válida de OpenAI.
 - Si el evaluador no dispone de clave, podrá revisar el vídeo de demostración.
 - La comparación será determinista y se realizará mediante código local, no mediante el modelo de IA.
@@ -162,7 +162,7 @@ La clave lógica de búsqueda será la combinación de `cif_proveedor` y `numero
 | RF-35 | El sistema deberá crear automáticamente `runtime/resultados.json` con una estructura vacía válida cuando no exista. | Alta |
 | RF-36 | El repositorio deberá incluir `data/resultados.example.json` como plantilla y ejemplo del historial. | Alta |
 | RF-37 | `runtime/resultados.json` deberá excluirse del control de versiones para que cada instalación mantenga su propio historial. | Alta |
-| RF-38 | El sistema deberá distinguir los errores conocidos de la API y mostrar mensajes comprensibles para autenticación, conexión, límite o cuota, tiempo de espera y respuesta inválida. | Alta |
+| RF-38 | El sistema deberá distinguir los errores conocidos de la API y mostrar mensajes comprensibles para autenticación, permisos, conexión, límite o cuota, tiempo de espera, solicitud inválida, servicio no disponible y respuesta inválida. | Alta |
 | RF-39 | Los errores ocurridos después de iniciar el procesamiento deberán registrarse indicando, como mínimo, la etapa y el tipo de error. | Alta |
 | RF-40 | Los mensajes y registros de error no deberán exponer claves, credenciales ni otros datos sensibles de configuración. | Alta |
 | RF-41 | El sistema deberá comprobar que no existen registros duplicados con la misma combinación CIF + número de albarán en `albaranes.json`. | Alta |
@@ -277,6 +277,7 @@ Cada registro deberá contener como mínimo:
 - `diferencias`
 - `mensaje`
 - `duracion_segundos`
+- `uso_api`, cuando la API proporcione información de consumo
 - `etapa_error`, cuando exista un error
 - `tipo_error`, cuando exista un error
 
@@ -312,9 +313,10 @@ Cada registro deberá contener como mínimo:
 | Validación de PDF | RF-06 a RF-10 | `src/pdf_validator.py` | `tests/test_pdf_validator.py` |
 | Extracción | RF-11 a RF-16 | `src/openai_extractor.py` | `tests/test_openai_extractor.py` con dobles de prueba |
 | Normalización | RF-17, RN-17, RN-26 | `src/normalizer.py` | `tests/test_normalizer.py`, incluidos `test_redondeo_financiero_half_up` y `test_conserva_separadores_numero_albaran` |
-| Comparación y estados | RF-18 a RF-21, RF-41 | `src/comparator.py` | `tests/test_comparator.py`, incluido `test_detecta_referencias_duplicadas` |
-| Historial | RF-22 a RF-29, RF-35 a RF-37 | `src/history.py` | `tests/test_history.py`, incluidas creación inicial y escritura segura |
-| Errores de API | RF-38 a RF-40, RN-25 | `src/openai_extractor.py` y `src/processing_service.py` | Pruebas de autenticación, conexión, espera, ausencia de clave y ausencia de reintentos con dobles de prueba |
+| Comparación y estados | RF-19 a RF-21 | `src/comparator.py` y `src/processing_service.py` | `tests/test_comparator.py` y `tests/test_processing_service.py` |
+| Datos de referencia | RF-18, RF-41, RN-18, RN-19 | `src/reference_repository.py` | `tests/test_reference_repository.py`, incluido `test_detecta_referencias_duplicadas` |
+| Historial | RF-22 a RF-29, RF-35 a RF-37 | `src/history_repository.py` | `tests/test_history_repository.py`, incluidas creación inicial y escritura segura |
+| Errores y configuración de API | RF-16, RF-38 a RF-40, RN-22, RN-24, RN-25 | `src/openai_extractor.py` y `src/processing_service.py` | Pruebas de autenticación, permisos, conexión, límite o cuota, tiempo de espera, solicitud inválida, servicio no disponible, respuesta inválida, ausencia de clave y ausencia de reintentos con dobles de prueba |
 | Interfaz | RF-01 a RF-05 | `app.py` | Pruebas manuales documentadas |
 
 La matriz se completará durante el diseño y la implementación, conservando los identificadores definidos en este documento.
@@ -332,8 +334,7 @@ comprobador-albaranes/
 │   ├── albaranes.json
 │   └── resultados.example.json
 ├── runtime/
-│   ├── .gitkeep
-│   └── resultados.json
+│   └── .gitkeep
 ├── tests/
 ├── docs/
 │   ├── requisitos.md
@@ -345,6 +346,8 @@ comprobador-albaranes/
 ├── requirements.txt
 └── README.md
 ```
+
+`runtime/resultados.json` no formará parte del repositorio. La aplicación lo creará automáticamente con una estructura vacía válida durante la primera ejecución y permanecerá excluido de Git mediante `.gitignore`.
 
 El README contendrá un resumen y enlazará este documento. La especificación completa permanecerá en `docs/requisitos.md` como fuente única de los requisitos.
 
