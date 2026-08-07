@@ -87,3 +87,18 @@ class HistoryError(AppError):
         """Inicializa un error interno en la etapa de guardado."""
 
         super().__init__(message, error_type, error_stage)
+
+
+class ReprocessingConfirmationError(AppError):
+    """Indica que un reprocesamiento necesita confirmación expresa."""
+
+    def __init__(
+        self,
+        message: str = (
+            "El documento ya fue procesado. "
+            "Confirma expresamente si deseas volver a procesarlo."
+        ),
+    ) -> None:
+        """Inicializa el control de flujo previo al inicio del intento."""
+
+        super().__init__(message, ErrorType.INTERNAL, None)
