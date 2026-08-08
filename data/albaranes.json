@@ -1,19 +1,19 @@
 {
   "albaranes": [
     {
-      "numero_albaran": "ALB-002",
-      "cif_proveedor": "B12345678",
-      "proveedor": "Suministros Ejemplo SL",
-      "fecha": "2026-08-01",
-      "importe_total": 250.00,
+      "numero_albaran": "ALB-2026-00417",
+      "cif_proveedor": "B98765432",
+      "proveedor": "Suministros Levante 2020, S.L.",
+      "fecha": "2026-08-07",
+      "importe_total": "1318.90",
       "moneda": "EUR"
     },
     {
-      "numero_albaran": "ALB-003",
-      "cif_proveedor": "B87654321",
-      "proveedor": "Distribuciones Demo SL",
-      "fecha": "2026-08-02",
-      "importe_total": 1250.75,
+      "numero_albaran": "ALB-2026-00418",
+      "cif_proveedor": "B55667788",
+      "proveedor": "Oficina y Logística Mediterránea, S.L.",
+      "fecha": "2026-08-07",
+      "importe_total": "1390.00",
       "moneda": "EUR"
     }
   ]
